@@ -1,6 +1,7 @@
 use std::fs;
 use std::io::Error;
 
+#[derive(Clone)]
 struct Computer {
     ints: Vec<i32>,
     program_counter: i32
@@ -64,7 +65,7 @@ impl Computer {
         self.get_safe(self.program_counter + offset)
     }
 
-    fn execute(&mut self) -> Result<(), &str> {
+    fn execute(&mut self) -> Result<(), String> {
         self.program_counter = 0;
 
         loop {
@@ -78,7 +79,7 @@ impl Computer {
                     return Ok(());
                 },
                 _ => {
-                    panic!("Unexpected op-code {op}");
+                    return Err(format!("Unexpected op-code {op}"));
                 }
             }
         }
@@ -86,10 +87,32 @@ impl Computer {
     }
 }
 
-fn main() {
+fn solve1() {
     let mut com = Computer::from_file("input.txt").expect("Failed to init computer");
     com.set(1, 12);
     com.set(2, 2);
     com.execute().expect("Error during execution");
-    println!("Result: {}", com.get_safe(0));
+    println!("Answer 1: {}", com.get_safe(0));
+}
+
+fn solve2() {
+    let mut com = Computer::from_file("input.txt").expect("Failed to init computer");
+    for a in 0..100 {
+        for b in 0..100 {
+            let mut com_cpy = com.clone();
+            com_cpy.set(1, a);
+            com_cpy.set(2, b);
+            match com_cpy.execute() {
+                Ok(()) => if com_cpy.get_safe(0) == 19690720 {
+                    println!("Answer 2: {}", 100 * a + b);
+                    return;
+                },
+                Err(_) => continue
+            }
+        }
+    }
+}
+
+fn main() {
+    solve2();
 }
