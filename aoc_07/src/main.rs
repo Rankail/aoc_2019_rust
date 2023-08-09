@@ -57,52 +57,65 @@ fn solve2() {
     let mut best_perm = None;
 
     for perm in phases.iter().permutations(phases.len()) {
-        let mut coms = vec![original.clone(), original.clone(), original.clone(), original.clone(), original.clone()];
-
-        for (idx, (com, phase)) in zip(&mut coms, perm.clone()).enumerate() {
-            com.push_next_input(phase.clone());
-            com.execute_until_input();
-            if idx == 0 {
-                com.push_next_input(0 as i32);
-            }
-        }
-
-        let mut last_e_out = -1;
-
-        let mut signals_to_push = Vec::new();
-        while coms.last().unwrap().is_waiting() {
-            let mut signal_changed = false;
-            for (idx, com) in coms.iter_mut().enumerate() {
-                for signal in &signals_to_push {
-                    com.push_next_input(*signal);
-                    signal_changed = true;
+        match run_perm(&original, &perm) {
+            Ok(output) => {
+                if output > max_signal {
+                    max_signal = output;
+                    best_perm = Some(perm.clone());
                 }
-                signals_to_push.clear();
-
-                if !com.is_waiting() {
-                    com.execute_until_input();
-                }
-                while com.has_output() {
-                    signal_changed = true;
-                    let out = com.pop_next_output().unwrap();
-                    if idx == 4 {
-                        last_e_out = out;
-                    }
-                    signals_to_push.push(out);
-                }
-            }
-            if !signal_changed {
-                panic!("No more signals. Program got stuck");
-            }
-        }
-
-        if last_e_out > max_signal {
-            max_signal = last_e_out;
-            best_perm = Some(perm.clone());
+            },
+            Err(_) => {}
         }
     }
 
     println!("Answer 2: {} with perm {:?}", max_signal, best_perm);
+}
+
+fn run_perm(original: &Computer2, perm: &Vec<&i32>) -> Result<i32, &'static str> {
+    let mut coms = vec![original.clone(), original.clone(), original.clone(), original.clone(), original.clone()];
+
+    for (idx, (com, phase)) in zip(&mut coms, perm.clone()).enumerate() {
+        com.push_next_input(phase.clone());
+        com.execute_until_input();
+        if idx == 0 {
+            com.push_next_input(0);
+        }
+    }
+
+    let mut last_e_out = -1;
+
+    let mut signals_to_push = Vec::new();
+    loop {
+        let mut signal_changed = false;
+        let mut all_finished = true;
+        for (idx, com) in coms.iter_mut().enumerate() {
+            for signal in &signals_to_push {
+                com.push_next_input(*signal);
+                signal_changed = true;
+            }
+            signals_to_push.clear();
+
+            com.execute_until_input()?;
+            if !com.is_finished() {
+                all_finished = false;
+            }
+
+            while com.has_output() {
+                signal_changed = true;
+                let out = com.pop_next_output().unwrap();
+                if idx == 4 {
+                    last_e_out = out;
+                }
+                signals_to_push.push(out);
+            }
+        }
+        if all_finished {
+            return Ok(last_e_out);
+        }
+        if !signal_changed {
+            return Err("No more signals. Program got stuck");
+        }
+    }
 }
 
 fn main() {

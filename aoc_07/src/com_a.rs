@@ -8,14 +8,14 @@ pub struct Computer2 {
     program_counter: i32,
     inputs: VecDeque<i32>,
     outputs: VecDeque<i32>,
-    waiting: bool
+    finished: bool
 }
 
 impl Computer2 {
     pub fn from_file(filepath: &str) -> Result<Computer2, Error> {
         let content = fs::read_to_string(filepath)?;
         let values = content.split(',')
-            .map(|s| s.parse().unwrap_or_else(|_| panic!("Unexpected value {s}")))
+            .map(|s| s.trim().parse().unwrap_or_else(|_| panic!("Unexpected value {s}")))
             .collect();
 
         Ok(Computer2 {
@@ -23,7 +23,7 @@ impl Computer2 {
             program_counter: 0,
             inputs: VecDeque::new(),
             outputs: VecDeque::new(),
-            waiting: false
+            finished: false
         })
     }
 
@@ -146,15 +146,15 @@ impl Computer2 {
         self.outputs.pop_front()
     }
 
-    pub fn is_waiting(&self) -> bool {
-        self.waiting
+    pub fn is_finished(&self) -> bool {
+        self.finished
     }
 
     pub fn has_output(&self) -> bool {
         !self.outputs.is_empty()
     }
 
-    pub fn execute_until_input(&mut self) {
+    pub fn execute_until_input(&mut self) -> Result<(), &'static str> {
         loop {
             let op = self.get_relative(0);
             match op % 100 {
@@ -164,8 +164,7 @@ impl Computer2 {
                     if !self.inputs.is_empty() {
                         self.execute_input()
                     } else {
-                        self.waiting = true;
-                        return;
+                        return Ok(());
                     }
                 },
                 4 => self.execute_output(op / 100),
@@ -174,10 +173,11 @@ impl Computer2 {
                 7 => self.execute_less(op / 100),
                 8 => self.execute_equals(op / 100),
                 99 => {
-                    return;
+                    self.finished = true;
+                    return Ok(());
                 },
                 _ => {
-                    panic!("Unexpected op-code {op}");
+                    return Err("Unexpected op-code {op}");
                 }
             }
         }
