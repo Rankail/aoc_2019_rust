@@ -1,17 +1,28 @@
 mod moon;
-mod moon_part;
 
 use std::fs;
 use std::hash::{Hash, Hasher};
 
 use num::integer::lcm;
+use regex::{Match, Regex};
 
 use crate::moon::Moon;
-use crate::moon_part::MoonPartial;
 
-struct PointAxis {
-    pos: Vec<i32>,
-    vel: Vec<i32>
+fn parse_match(m: &Match) -> i128 {
+    m.as_str().parse::<i128>().expect("Failed to parse capture group")
+}
+
+fn get_moon_coordinates(line: &str) -> (i128, i128, i128) {
+    let re = Regex::new(r"^<x=(.*?), y=(.*?), z=(.*?)>$").unwrap();
+
+    match re.captures(line) {
+        Some(c) => (
+            parse_match(&c.get(1).unwrap()),
+            parse_match(&c.get(2).unwrap()),
+            parse_match(&c.get(3).unwrap())
+        ),
+        None => panic!("Invalid input '{}'", line)
+    }
 }
 
 fn step(moons: &mut Vec<Moon>) {
@@ -27,16 +38,17 @@ fn step(moons: &mut Vec<Moon>) {
     }
 }
 
-fn step_parts(moon_parts: &mut Vec<MoonPartial>) {
-    for i in 0..(moon_parts.len()-1) {
-        let (moon1, rest) = moon_parts[i..].split_at_mut(1);
-        for moon2 in rest {
-            MoonPartial::apply_gravity(&mut moon1[0], moon2);
+fn step_parts(positions: &mut Vec<i128>, velocities: &mut Vec<i128>) {
+    for i in 0..(positions.len()-1) {
+        for j in (i+1)..positions.len() {
+            let diff = (positions[j] - positions[i]).signum();
+            velocities[i] += diff;
+            velocities[j] -= diff;
         }
     }
 
-    for m in moon_parts {
-        m.apply_forces();
+    for i in 0..positions.len() {
+        positions[i] += velocities[i];
     }
 }
 
@@ -55,15 +67,19 @@ fn solve1() {
     println!("Answer 1: {}", enery_sum);
 }
 
-fn get_steps_until_repeat(moon_parts: &mut Vec<MoonPartial>) -> i64 {
-    let start = moon_parts.clone();
+fn get_steps_until_repeat(start: Vec<i128>) -> i64 {
+    let mut positions = start.clone();
+    let zero_vec = vec![0i128; positions.len()];
+    let mut velocities = zero_vec.clone();
     let mut i = 0;
     loop {
-        step_parts(moon_parts);
+        step_parts(&mut positions, &mut velocities);
         i += 1;
-        if *moon_parts == start {
+
+        if positions == start && velocities == zero_vec {
             break;
         }
+
         if i % 1000 == 0 {
             println!("{i}");
         }
@@ -72,25 +88,31 @@ fn get_steps_until_repeat(moon_parts: &mut Vec<MoonPartial>) -> i64 {
     i
 }
 
-fn solve2() {
-    // split up by coordinate => lcm
-    let content = fs::read_to_string("input.txt").expect("Failed to read input");
-
-    let mut mx = Vec::new();
-    let mut my = Vec::new();
-    let mut mz = Vec::new();
-
-    for line in content.lines() {
-        let (px, py, pz) = MoonPartial::from_str(line);
-        mx.push(px);
-        my.push(py);
-        mz.push(pz);
+fn read_data_splitted(path: &str) -> Vec<Vec<i128>> {
+    let mut all: Vec<Vec<i128>> = Vec::new();
+    for _ in 0..3 {
+        all.push(Vec::new());
     }
 
+    let content = fs::read_to_string(path).expect("Failed to read input");
+    for line in content.lines() {
+        let (px, py, pz) = get_moon_coordinates(line);
+        all[0].push(px);
+        all[1].push(py);
+        all[2].push(pz);
+    }
+
+    all
+}
+
+fn solve2() {
+    // split up by coordinate => lcm
+    let data = read_data_splitted("input.txt");
+
     let (ix, iy, iz) = (
-        get_steps_until_repeat(&mut mx),
-        get_steps_until_repeat(&mut my),
-        get_steps_until_repeat(&mut mz)
+        get_steps_until_repeat(data[0].clone()),
+        get_steps_until_repeat(data[1].clone()),
+        get_steps_until_repeat(data[2].clone())
     );
 
     let repeat = lcm(lcm(ix, iy), iz);
